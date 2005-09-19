@@ -90,6 +90,7 @@ function VarEnsureRange(const AValue, AMin, AMax: Variant): Variant;
 function VarIsEmptyParam(const V: Variant): Boolean;
 
 procedure VarClear(var V: Variant);{$ifdef VARIANTINLINE}inline;{$endif VARIANTINLINE}
+procedure VarClear(var V: OleVariant);{$ifdef VARIANTINLINE}inline;{$endif VARIANTINLINE}
 
 procedure SetClearVarToEmptyParam(var V: TVarData);
 
@@ -1988,6 +1989,13 @@ end;
 procedure VarClear(var V: Variant);{$ifdef VARIANTINLINE}inline;{$endif VARIANTINLINE}
 begin
   sysvarclear(v);
+end;
+
+
+procedure VarClear(var V: OleVariant);{$ifdef VARIANTINLINE}inline;{$endif VARIANTINLINE}
+begin
+  { strange casting using TVarData to avoid call of helper olevariant->variant }
+  sysvarclear(Variant(TVarData(v)));
 end;
 
 

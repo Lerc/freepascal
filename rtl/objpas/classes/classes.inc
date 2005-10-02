@@ -425,17 +425,17 @@ Var
 
 procedure RegisterFindGlobalComponentProc(AFindGlobalComponent: TFindGlobalComponent);
   begin
-  	if not(assigned(FindGlobalComponentList)) then
-  	  FindGlobalComponentList:=TList.Create;
-  	if FindGlobalComponentList.IndexOf(Pointer(AFindGlobalComponent))<0 then
-  	  FindGlobalComponentList.Add(Pointer(AFindGlobalComponent));
+    if not(assigned(FindGlobalComponentList)) then
+      FindGlobalComponentList:=TList.Create;
+    if FindGlobalComponentList.IndexOf(Pointer(AFindGlobalComponent))<0 then
+      FindGlobalComponentList.Add(Pointer(AFindGlobalComponent));
   end;
 
 
 procedure UnregisterFindGlobalComponentProc(AFindGlobalComponent: TFindGlobalComponent);
   begin
-  	if assigned(FindGlobalComponentList) then
-  	  FindGlobalComponentList.Remove(Pointer(AFindGlobalComponent));
+    if assigned(FindGlobalComponentList) then
+      FindGlobalComponentList.Remove(Pointer(AFindGlobalComponent));
   end;
 
 
@@ -443,8 +443,8 @@ function FindGlobalComponent(const Name: string): TComponent;
   var
   	i : sizeint;
   begin
-  	FindGlobalComponent:=nil;
-  	if assigned(FindGlobalComponentList) then
+    FindGlobalComponent:=nil;
+    if assigned(FindGlobalComponentList) then
       begin
       	for i:=FindGlobalComponentList.Count-1 downto 0 do
       	  begin
@@ -457,11 +457,9 @@ function FindGlobalComponent(const Name: string): TComponent;
 
 
 procedure RegisterInitComponentHandler(ComponentClass: TComponentClass;   Handler: TInitComponentHandler);
-
 Var
   I : Integer;
   H: TInitHandler;
-
 begin
   If (InitHandlerList=Nil) then
     InitHandlerList:=TList.Create;
@@ -470,18 +468,66 @@ begin
   H.AHandler:=Handler;
   With InitHandlerList do
     begin
-    I:=0;
-    While (I<Count) and not H.AClass.InheritsFrom(TInitHandler(Items[i]).AClass) do
-      Inc(I);
-    InitHandlerList.Insert(I,H);
+      I:=0;
+      While (I<Count) and not H.AClass.InheritsFrom(TInitHandler(Items[I]).AClass) do
+        Inc(I);
+      { override? }
+      if (I<Count) and (TInitHandler(Items[I]).AClass=H.AClass) then
+        TInitHandler(Items[I]).AHandler:=Handler
+      else
+        InitHandlerList.Insert(I,H);
     end;
 end;
 
-function InitInheritedComponent(Instance: TComponent; RootAncestor: TClass): Boolean;
 
+{ all targets should at least include the sysres.inc dummy in the system unit to compile this }
+function CreateComponentfromRes(const res : string;Inst : THandle;var Component : TComponent) : Boolean;
+  var
+    ResStream : TResourceStream;
+  begin
+    result:=true;
+
+    if Inst=0 then
+      Inst:=HInstance;
+
+    try
+      ResStream:=TResourceStream.Create(Inst,res,RT_RCDATA);
+      try
+        Component:=ResStream.ReadComponent(Component);
+      finally
+        ResStream.Free;
+      end;
+    except
+      on EResNotFound do
+        result:=false;
+    end;
+  end;
+
+
+function DefaultInitHandler(Instance: TComponent; RootAncestor: TClass): Boolean;
+
+  function doinit(_class : TClass) : boolean;
+    begin
+      result:=false;
+      if (_class.ClassType=TComponent) or (_class.ClassType=RootAncestor) then
+        exit;
+      result:=doinit(_class.ClassParent);
+      result:=CreateComponentfromRes(_class.ClassName,0,Instance) or result;
+    end;
+
+  begin
+    GlobalNameSpace.BeginWrite;
+    try
+      result:=doinit(Instance.ClassType);
+    finally
+      GlobalNameSpace.EndWrite;
+    end;
+  end;
+
+
+function InitInheritedComponent(Instance: TComponent; RootAncestor: TClass): Boolean;
 Var
   I : Integer;
-
 begin
   I:=0;
   if not Assigned(InitHandlerList) then begin
@@ -561,8 +607,8 @@ var
   Instance: TPersistent;
   Reference: Pointer;
 begin
-  {!!!: GlobalNameSpace.BeginWrite;
-  try}
+  GlobalNameSpace.BeginWrite;
+  try
     GlobalList := GlobalFixupList.LockList;
     try
       if GlobalList.Count > 0 then
@@ -614,9 +660,9 @@ begin
     finally
       GlobalFixupList.UnlockList;
     end;
-  {finally
+  finally
     GlobalNameSpace.EndWrite;
-  end;}
+  end;
 end;
 
 
@@ -783,10 +829,8 @@ begin
   Result := Current;
 end;
 
-{!!!: Should be threadvar  -  doesn't work for all platforms yet!}
-var
+threadvar
   GlobalLoaded, GlobalLists: TList;
-
 
 procedure BeginGlobalLoading;
 
@@ -1538,6 +1582,7 @@ begin
   ClassAliasList := TStringList.Create;
   { on unix this maps to a simple rw synchornizer }
   GlobalNameSpace := TMultiReadExclusiveWriteSynchronizer.Create;
+  RegisterInitComponentHandler(TComponent,@DefaultInitHandler);
 end;
 
 procedure CommonCleanup;
@@ -1560,10 +1605,10 @@ begin
   GlobalFixupList := nil;
   GlobalLists.Free;
   ComponentPages.Free;
-  
+
   { GlobalNameSpace is an interface so this is enough }
   GlobalNameSpace:=nil;
-  
+
   if (InitHandlerList<>Nil) then
     for i := 0 to InitHandlerList.Count - 1 do
       TInitHandler(InitHandlerList.Items[I]).Free;

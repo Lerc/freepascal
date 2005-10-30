@@ -110,6 +110,7 @@ procedure VarCopyNoInd(var Dest: Variant; const Source: Variant);
 { Variant array support procedures and functions }
 
 function VarArrayCreate(const Bounds: array of SizeInt; AVarType: TVarType): Variant;
+function VarArrayCreate(const Bounds: pvararrayboundarray; Dims : SizeInt; AVarType: TVarType): Variant;
 function VarArrayOf(const Values: array of Variant): Variant;
 
 function VarArrayAsPSafeArray(const A: Variant): PVarArray;
@@ -314,6 +315,17 @@ uses
 
 procedure sysvarclearproc(var v : tvardata);forward;
 
+
+function aligntoptr(p : pointer) : pointer;inline;
+  begin
+{$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
+    if (ptrint(p) mod sizeof(ptrint))<>0 then
+      inc(ptrint(p),sizeof(ptrint)-ptrint(p) mod sizeof(ptrint));
+{$endif FPC_REQUIRES_PROPER_ALIGNMENT}
+    result:=p;
+  end;
+
+
 { ---------------------------------------------------------------------
     String Messages
   ---------------------------------------------------------------------}
@@ -397,31 +409,49 @@ type
   tdynarraybounds = array of longint;
   tdynarraycoords = tdynarraybounds;
   tdynarrayelesize = tdynarraybounds;
+  tdynarraypositions = array of pointer;
   tdynarrayiter = object
     bounds : tdynarraybounds;
     coords : tdynarraycoords;
     elesize : tdynarrayelesize;
+    positions : tdynarraypositions;
     dims : SizeInt;
     data : pointer;
-    constructor init(p : pdynarraytypeinfo;d: SizeInt;b : tdynarraybounds);
+    constructor init(d : pointer;p : pdynarraytypeinfo;_dims: SizeInt;b : tdynarraybounds);
     function next : boolean;
     destructor done;
   end;
 
 
-constructor tdynarrayiter.init(p : pdynarraytypeinfo;d: SizeInt;b : tdynarraybounds);
+constructor tdynarrayiter.init(d : pointer;p : pdynarraytypeinfo;_dims: SizeInt;b : tdynarraybounds);
   var
     i : sizeint;
   begin
     bounds:=b;
-    dims:=d;
-    SetLength(coords,d);
-    SetLength(elesize,d);
+    dims:=_dims;
+    SetLength(coords,dims);
+    SetLength(elesize,dims);
+    SetLength(positions,dims);    
+    positions[0]:=d;
     { initialize coordinate counter and elesize }
     for i:=0 to dims-1 do
       begin
         coords[i]:=0;
+        if i>0 then
+          positions[i]:=pointer(positions[i-1]^);
+        { skip kind and name }
+        inc(pointer(p),ord(pdynarraytypeinfo(p)^.namelen)+2);
+
+        p:=aligntoptr(p);
+
+        elesize[i]:=psizeint(p)^;
+
+        { skip elesize }
+        inc(pointer(p),sizeof(sizeint));
+
+        p:=pdynarraytypeinfo(ppointer(p)^);
       end;
+    data:=positions[dims-1];
   end;
 
 
@@ -434,11 +464,16 @@ function tdynarrayiter.next : boolean;
       if finished then
         exit;
       inc(coords[d]);
+      inc(pointer(positions[d]),elesize[d]);
+
       if coords[d]>=bounds[d] then
         begin
           coords[d]:=0;
           if d>0 then
-            incdim(d-1)
+            begin
+              incdim(d-1);
+              positions[d]:=pointer(positions[d-1]^);
+            end
           else
             finished:=true;
         end;
@@ -447,15 +482,17 @@ function tdynarrayiter.next : boolean;
   begin
     finished:=false;
     incdim(dims-1);
-    { !!!!!
-    inc(data,);
-    }
+    data:=positions[dims-1];
     result:=not(finished);
   end;
 
 
 destructor tdynarrayiter.done;
   begin
+    bounds:=nil;
+    coords:=nil;
+    elesize:=nil;
+    positions:=nil;
   end;
 
 { ---------------------------------------------------------------------
@@ -570,16 +607,6 @@ begin
 end;
 
 
-function aligntoptr(p : pointer) : pointer;inline;
-  begin
-{$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-    if (ptrint(p) mod sizeof(ptrint))<>0 then
-      inc(ptrint(p),sizeof(ptrint)-ptrint(p) mod sizeof(ptrint));
-{$endif FPC_REQUIRES_PROPER_ALIGNMENT}
-    result:=p;
-  end;
-
-
 {$ifdef dummy}
 function DynamicArrayDimensions(const p : pointer) : sizeint;
   begin
@@ -608,7 +635,7 @@ function DynamicArrayIsRectangular(p : pointer;typeinfo : pointer) : boolean;
     { get typeinfo of second level }
     { skip kind and name }
     inc(pointer(typeinfo),ord(pdynarraytypeinfo(typeinfo)^.namelen)+2);
-    p:=aligntoptr(typeinfo);
+    typeinfo:=aligntoptr(typeinfo);
     typeinfo:=ppointer(typeinfo+sizeof(sizeint))^;
 
     { check recursively? }
@@ -632,22 +659,23 @@ function DynamicArrayIsRectangular(p : pointer;typeinfo : pointer) : boolean;
 
 
 procedure sysvartodynarray (var dynarr : pointer;const v : variant; typeinfo : pointer);
-begin
-  DynArrayFromVariant(dynarr,v,typeinfo);
-  if not(assigned(dynarr)) then
-    VarCastError;
-end;
+  begin
+    DynArrayFromVariant(dynarr,v,typeinfo);
+    if not(assigned(dynarr)) then
+      VarCastError;
+  end;
+
 
 procedure sysvarfrombool (var dest : variant;const source : Boolean);
-begin
-  if TVarData(Dest).VType>=varOleStr then
-    sysvarclear(Dest);
-  With TVarData(dest) do
-    begin
-      VType:=varBoolean;
-      VBoolean:=Source;
-    end;
-end;
+  begin
+    if TVarData(Dest).VType>=varOleStr then
+      sysvarclear(Dest);
+    With TVarData(dest) do
+      begin
+        VType:=varBoolean;
+        VBoolean:=Source;
+      end;
+  end;
 
 
 procedure sysvarfromint (var dest : variant;const source,range : longint);
@@ -1529,8 +1557,7 @@ procedure sysvarcopyproc(var d : tvardata;const s : tvardata);
 
               newarray:=SafeArrayCreate(varVariant,p^.DimCount,boundsarray^);
               if not(assigned(newarray)) then
-
-	      VarArrayCreateError;
+                VarArrayCreateError;
 
               try
                 iter.init(p^.DimCount,boundsarray);
@@ -2336,6 +2363,23 @@ function VarArrayCreate(const Bounds: array of SizeInt; AVarType: TVarType): Var
   end;
 
 
+function VarArrayCreate(const Bounds: pvararrayboundarray; Dims : SizeInt; AVarType: TVarType): Variant;
+  var
+    p : pvararray;
+  begin
+    if not(VarTypeIsValidArrayType(AVarType)) then
+      VarArrayCreateError;
+    SysVarClear(result);
+
+    p:=SafeArrayCreate(AVarType,Dims,Bounds^);
+
+    if not(assigned(p)) then
+      VarArrayCreateError;
+
+    tvardata(result).vtype:=AVarType or varArray;
+    tvardata(result).varray:=p;
+  end;
+
 function VarArrayOf(const Values: array of Variant): Variant;
   var
     i : SizeInt;
@@ -2485,13 +2529,13 @@ function DynArrayGetVariantInfo(p : pointer;var dims : longint) : longint;
     inc(p,sizeof(sizeint));
 
     { search recursive? }
-    if pdynarraytypeinfo(p)^.kind=21{tkDynArr} then
+    if pdynarraytypeinfo(ppointer(p)^)^.kind=21{tkDynArr} then
       result:=DynArrayGetVariantInfo(ppointer(p)^,dims)
     else
       begin
         { skip dynarraytypeinfo }
         inc(p,sizeof(pdynarraytypeinfo));
-        result:=plongint(p)^;
+        result:=plongint(p)^;        
       end;
     inc(dims);
   end;
@@ -2503,9 +2547,13 @@ procedure DynArrayToVariant(var V: Variant; const DynArray: Pointer; TypeInfo: P
     vararrtype,
     dynarrvartype : longint;
     dims : longint;
-    vararraybounds : array of SizeInt;
+    vararraybounds : pvararrayboundarray;
     iter : tvariantarrayiter;
+    dynarriter : tdynarrayiter;
     p : Pointer;
+    temp : variant;
+    variantmanager : tvariantmanager;
+    dynarraybounds : tdynarraybounds;
   type
     TDynArray = array of pointer;
   begin
@@ -2519,53 +2567,79 @@ procedure DynArrayToVariant(var V: Variant; const DynArray: Pointer; TypeInfo: P
     if (dims>1) and not(DynamicArrayIsRectangular(DynArray,TypeInfo)) then
       exit;
 
-    { retrieve bounds array }
-    Setlength(vararraybounds,dims*2);
-    p:=DynArray;
-    for i:=0 to dims-1 do
-      begin
-        vararraybounds[i*2]:=0;
-        vararraybounds[i*2+1]:=high(TDynArray(p));
-        { we checked if the array is rectangular }
-        p:=TDynArray(p)[0];
-      end;
-    { .. create variant array }
-    VarArrayCreate(vararraybounds,vararrtype);
+    GetVariantManager(variantmanager);
 
-    VarArrayLock(V);
+    { retrieve bounds array }
+    Setlength(dynarraybounds,dims);
+    getmem(vararraybounds,dims*sizeof(TVarArrayBound));
     try
-      //!!!! iter.init(dims,);
-      repeat
-        case vararrtype of
-          varsmallint:
-            ;
-          {
-          varinteger = 3;
-          varsingle = 4;
-          vardouble = 5;
-          varcurrency = 6;
-          vardate = 7;
-          varolestr = 8;
-          vardispatch = 9;
-          varerror = 10;
-          varboolean = 11;
-          varvariant = 12;
-          varunknown = 13;
-          vardecimal = 14;
-          varshortint = 16;
-          varbyte = 17;
-          varword = 18;
-          varlongword = 19;
-          varint64 = 20;
-          varqword = 21
-          }
-          else
-            VarClear(V);
+      p:=DynArray;
+      for i:=0 to dims-1 do
+        begin
+          vararraybounds^[i].lowbound:=0;
+          vararraybounds^[i].elementcount:=length(TDynArray(p));
+          dynarraybounds[i]:=length(TDynArray(p));
+          { we checked that the array is rectangular }
+          p:=TDynArray(p)[0];
         end;
-       until not(iter.next);
+      { .. create variant array }
+      V:=VarArrayCreate(vararraybounds,dims,vararrtype);
+
+      VarArrayLock(V);
+      try
+        iter.init(dims,pvararrayboundarray(vararraybounds));
+        dynarriter.init(DynArray,TypeInfo,dims,dynarraybounds);
+        repeat
+          case vararrtype of
+            varsmallint:
+              temp:=PSmallInt(dynarriter.data)^;
+            varinteger:
+              temp:=PInteger(dynarriter.data)^;
+            varsingle:
+              temp:=PSingle(dynarriter.data)^;
+            vardouble:
+              temp:=PDouble(dynarriter.data)^;
+            varcurrency:
+              temp:=PCurrency(dynarriter.data)^;
+            vardate:
+              temp:=PDouble(dynarriter.data)^;
+            varolestr:
+              temp:=PWideString(dynarriter.data)^;
+            vardispatch:
+              temp:=PDispatch(dynarriter.data)^;
+            varerror:
+              temp:=PError(dynarriter.data)^;
+            varboolean:
+              temp:=PBoolean(dynarriter.data)^;
+            varvariant:
+              temp:=PVariant(dynarriter.data)^;
+            varunknown:
+              temp:=PUnknown(dynarriter.data)^;           
+            varshortint:
+              temp:=PShortInt(dynarriter.data)^;
+            varbyte:
+              temp:=PByte(dynarriter.data)^;
+            varword:
+              temp:=PWord(dynarriter.data)^;
+            varlongword:
+              temp:=PLongWord(dynarriter.data)^;
+            varint64:
+              temp:=PInt64(dynarriter.data)^;
+            varqword:
+              temp:=PQWord(dynarriter.data)^;            
+            else
+              VarClear(temp);
+          end;
+          dynarriter.next;
+          variantmanager.VarArrayPut(V,temp,dims,PSizeInt(iter.coords));
+        until not(iter.next);
+      finally
+        iter.done;
+        dynarriter.done;
+        VarArrayUnlock(V);
+      end;
     finally
-      iter.done;
-      VarArrayUnlock(V);
+      freemem(vararraybounds);
     end;
   end;
 

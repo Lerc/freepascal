@@ -2517,7 +2517,7 @@ function VarTypeIsValidElementType(const AVarType: TVarType): Boolean;
     Variant <-> Dynamic arrays support
   ---------------------------------------------------------------------}
 
-function DynArrayGetVariantInfo(p : pointer;var dims : longint) : longint;
+function DynArrayGetVariantInfo(p : pointer;var dims : sizeint) : sizeint;
   begin
     result:=varNull;
     { skip kind and name }
@@ -2544,9 +2544,9 @@ function DynArrayGetVariantInfo(p : pointer;var dims : longint) : longint;
 procedure DynArrayToVariant(var V: Variant; const DynArray: Pointer; TypeInfo: Pointer);
   var
     i,
+    dims           : sizeint;
     vararrtype,
-    dynarrvartype : longint;
-    dims : longint;
+    dynarrvartype  : longint;
     vararraybounds : pvararrayboundarray;
     iter : tvariantarrayiter;
     dynarriter : tdynarrayiter;

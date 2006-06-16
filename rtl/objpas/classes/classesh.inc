@@ -1200,7 +1200,7 @@ type
     FThreadID: TThreadID; // someone might need it for pthread_* calls
     procedure DoTerminate; virtual;
     procedure Execute; virtual; abstract;
-    procedure Synchronize(Method: TThreadMethod);
+    procedure Synchronize(AMethod: TThreadMethod);
     property ReturnValue: Integer read FReturnValue write FReturnValue;
     property Terminated: Boolean read FTerminated;
 {$ifdef Unix}
@@ -1229,6 +1229,7 @@ type
     procedure Suspend;
     procedure Terminate;
     function WaitFor: Integer;
+    class procedure Synchronize(AThread: TThread; AMethod: TThreadMethod);
     property FreeOnTerminate: Boolean read FFreeOnTerminate write FFreeOnTerminate;
     property Handle: TThreadID read FHandle;
     property Priority: TThreadPriority read GetPriority write SetPriority;

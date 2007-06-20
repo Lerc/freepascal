@@ -2134,7 +2134,7 @@ procedure sysvararrayredim(var a : variant;highbound : SizeInt);
         else
           p:=src.varray;
 
-        if highbound<p^.bounds[p^.dimcount-1].lowbound then
+        if highbound<p^.bounds[p^.dimcount-1].lowbound-1 then
           VarInvalidArgError;
 
         newbounds.lowbound:=p^.bounds[p^.dimcount-1].lowbound;
@@ -2707,17 +2707,9 @@ function VarArrayOf(const Values: array of Variant): Variant;
   var
     i : SizeInt;
   begin
-    if length(Values)>0 then
-      begin
-        result:=VarArrayCreate([0,high(Values)],varVariant);
-        for i:=0 to high(Values) do
-          result[i]:=Values[i];
-      end
-    else
-      begin
-        SysVarClear(result);
-        tvardata(result).vtype:=varEmpty;
-      end;
+    result:=VarArrayCreate([0,high(Values)],varVariant);
+    for i:=0 to high(Values) do
+      result[i]:=Values[i];
   end;
 
 

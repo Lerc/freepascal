@@ -1664,7 +1664,7 @@ procedure sysvarcopyproc(var d : tvardata;const s : tvardata);
     ubound : longint;
     iter : tvariantarrayiter;
     varfrom,varto : pvardata;
-    i : SizeInt;
+    i, cnt : SizeInt;
   begin
     if @d=@s then
       exit;
@@ -1697,17 +1697,20 @@ procedure sysvarcopyproc(var d : tvardata;const s : tvardata);
 
             getmem(boundsarray,p^.DimCount*sizeof(TVarArrayBound));
             try
+              cnt:=0;
               for i:=0 to p^.DimCount-1 do
                 begin
                   VarResultCheck(SafeArrayGetLBound(p,i+1,boundsarray^[i].lowbound));
                   VarResultCheck(SafeArrayGetUBound(p,i+1,ubound));
                   boundsarray^[i].elementcount:=ubound-boundsarray^[i].lowbound+1;
+                  Inc(cnt, boundsarray^[i].elementcount);
                 end;
 
               newarray:=SafeArrayCreate(varVariant,p^.DimCount,boundsarray^);
               if not(assigned(newarray)) then
                 VarArrayCreateError;
 
+              if cnt > 0 then
               try
                 iter.init(p^.DimCount,boundsarray);
                 repeat
@@ -1715,11 +1718,11 @@ procedure sysvarcopyproc(var d : tvardata;const s : tvardata);
                   VarResultCheck(SafeArrayPtrOfIndex(newarray,iter.coords,varto));
                   sysvarcopyproc(varto^,varfrom^);
                 until not(iter.next);
-                d.vtype:=varVariant or varArray;
-                d.varray:=newarray;
               finally
                 iter.done;
               end;
+              d.vtype:=varVariant or varArray;
+              d.varray:=newarray;
             finally
               freemem(boundsarray);
             end;

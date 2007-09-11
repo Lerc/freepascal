@@ -1238,6 +1238,7 @@ type
     FSem: Pointer;
     FInitialSuspended: boolean;
     FSuspendedExternal: boolean;
+    FThreadReaped: boolean;
 {$endif}
 {$ifdef netwlibc}
   private

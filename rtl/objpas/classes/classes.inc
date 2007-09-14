@@ -157,9 +157,10 @@ procedure TThread.Synchronize(AMethod: TThreadMethod);
   end;
 
 
-procedure CheckSynchronize(timeout : longint=0);
+function CheckSynchronize(timeout : longint=0) : boolean;
   { assumes being called from GUI thread }
   begin
+    result:=false;
     { first sanity check }
     if Not IsMultiThread then
       Exit
@@ -180,6 +181,7 @@ procedure CheckSynchronize(timeout : longint=0);
             DoSynchronizeMethod:=false;
             try
               SynchronizeMethod;
+              result:=true;
             except
               SynchronizeException:=Exception(AcquireExceptionObject);
             end;
@@ -1427,7 +1429,7 @@ var
 	    begin
             setlength(s,length(ws));
             for i:= 1 to length(s) do begin
-              s[i]:= ws[i]; //cut msb
+              s[i]:= chr(ord(ws[i])); //cut msb
             end;
             if (length(S)>255) then begin
             Output.WriteByte(Ord(vaLString));

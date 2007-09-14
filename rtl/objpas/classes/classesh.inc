@@ -58,7 +58,7 @@ type
   TSeekOrigin = (soBeginning, soCurrent, soEnd);
   TDuplicates = Types.TDuplicates;
 
-// For Delphi and backwards compatibility.  
+// For Delphi and backwards compatibility.
 const
   dupIgnore = Types.dupIgnore;
   dupAccept = Types.dupAccept;
@@ -96,9 +96,11 @@ type
     ssLeft, ssRight, ssMiddle, ssDouble,
     // Extra additions
     ssMeta, ssSuper, ssHyper, ssAltGr, ssCaps, ssNum,
-    ssScroll,ssTriple,ssQuad);
+    ssScroll,ssTriple,ssQuad,ssExtra1,ssExtra2);
 
+{$packset 1}
   TShiftState = set of TShiftStateEnum;
+{$packset default}
 
   THelpContext = -MaxLongint..MaxLongint;
   THelpType = (htKeyword, htContext);
@@ -148,6 +150,8 @@ type
   TListCallback = procedure(data,arg:pointer) of object;
   TListStaticCallback = procedure(data,arg:pointer);
 
+  TListAssignOp = (laCopy, laAnd, laOr, laXor, laSrcUnique, laDestUnique);
+
   TFPList = class(TObject)
   private
     FList: PPointerList;
@@ -174,7 +178,7 @@ type
     procedure Insert(Index: Integer; Item: Pointer); {$ifdef CLASSESINLINE} inline; {$endif CLASSESINLINE}
     function Last: Pointer;
     procedure Move(CurIndex, NewIndex: Integer);
-    procedure Assign(Obj:TFPList);
+    procedure Assign(Obj:TFPList; AOperator: TListAssignOp = laCopy; ListB: TFPList = nil);
     function Remove(Item: Pointer): Integer;
     procedure Pack;
     procedure Sort(Compare: TListSortCompare);
@@ -187,8 +191,8 @@ type
   end;
 
 { TList class}
-
   TListNotification = (lnAdded, lnExtracted, lnDeleted);
+
 
   TList = class(TObject)
   private
@@ -219,7 +223,7 @@ type
     procedure Insert(Index: Integer; Item: Pointer);
     function Last: Pointer;
     procedure Move(CurIndex, NewIndex: Integer);
-    procedure Assign(Obj:TList);
+    procedure Assign(Obj: TList; AOperator: TListAssignOp = laCopy; ListB: TList = nil);
     function Remove(Item: Pointer): Integer;
     procedure Pack;
     procedure Sort(Compare: TListSortCompare);
@@ -1563,9 +1567,10 @@ var
     tthread helpers
   ---------------------------------------------------------------------}
 
-{ procedure to be called when gui thread is ready to execute method
+{ function to be called when gui thread is ready to execute method
+  result is true if a method has been executed
 }
-procedure CheckSynchronize(timeout : longint=0);
+function CheckSynchronize(timeout : longint=0) : boolean;
 
 var
   { method proc that is called to trigger gui thread to execute a

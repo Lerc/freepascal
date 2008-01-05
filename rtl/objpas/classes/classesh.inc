@@ -1382,6 +1382,11 @@ type
   end;
   }
 
+  IInterfaceComponentReference = interface 
+    ['{3FEEC8E1-E400-4A24-BCAC-1F01476439B1}']
+    function GetComponent:TComponent;
+   end;
+
   IDesignerNotify = interface
     ['{B971E807-E3A6-11D1-AAB1-00C04FB16FBC}']
     procedure Modified;
@@ -1392,7 +1397,7 @@ type
 
   { TComponent }
 
-  TComponent = class(TPersistent,IUnknown)
+  TComponent = class(TPersistent,IUnknown,IInterfaceComponentReference)
   private
     FOwner: TComponent;
     FName: TComponentName;
@@ -1445,6 +1450,7 @@ type
     function QueryInterface(const IID: TGUID; out Obj): Hresult; virtual; stdcall;
     function _AddRef: Integer; stdcall;
     function _Release: Integer; stdcall;
+    function iicrGetComponent: TComponent;
     { IDispatch }
     //!!!! function GetTypeInfoCount(out Count: Integer): Integer; stdcall;
     //!!!! function GetTypeInfo(Index, LocaleID: Integer; out TypeInfo): Integer; stdcall;
@@ -1454,6 +1460,7 @@ type
     //!!!!   Flags: Word; var Params; VarResult, ExcepInfo, ArgErr: Pointer): Integer; stdcall;
   public
     //!! Moved temporary
+    function IInterfaceComponentReference.GetComponent=iicrgetcomponent;
     procedure WriteState(Writer: TWriter); virtual;
     constructor Create(AOwner: TComponent); virtual;
     procedure BeforeDestruction; override;

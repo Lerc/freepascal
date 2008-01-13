@@ -614,7 +614,7 @@ type
     function IndexOf(const S: string): Integer; override;
     procedure Insert(Index: Integer; const S: string); override;
     procedure Sort; virtual;
-    procedure CustomSort(CompareFn: TStringListSortCompare);
+    procedure CustomSort(CompareFn: TStringListSortCompare); virtual;
     property Duplicates: TDuplicates read FDuplicates write FDuplicates;
     property Sorted: Boolean read FSorted write SetSorted;
     property CaseSensitive: Boolean read FCaseSensitive write SetCaseSensitive;
@@ -1481,6 +1481,8 @@ type
     procedure SetSubComponent(ASubComponent: Boolean);
     function UpdateAction(Action: TBasicAction): Boolean; dynamic;
     // property ComObject: IUnknown read GetComObject;
+    function IsImplementorOf (const Intf:IInterface):boolean;
+    procedure ReferenceInterface(const intf:IInterface;op:TOperation);
     property Components[Index: Integer]: TComponent read GetComponent;
     property ComponentCount: Integer read GetComponentCount;
     property ComponentIndex: Integer read GetComponentIndex write SetComponentIndex;

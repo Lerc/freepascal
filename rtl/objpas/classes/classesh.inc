@@ -544,6 +544,7 @@ type
     procedure SaveToStream(Stream: TStream); virtual;
     procedure SetText(TheText: PChar); virtual;
     procedure GetNameValue(Index : Integer; Var AName,AValue : String);
+    function  ExtractName(Const S:String):String;
     Property TextLineBreakStyle : TTextLineBreakStyle Read GetLBS Write SetLBS;
     property Delimiter: Char read FDelimiter write SetDelimiter;
     property DelimitedText: string read GetDelimitedText write SetDelimitedText;
@@ -691,9 +692,11 @@ type
     procedure SetSize64(const NewSize: Int64); virtual;
     procedure SetSize(NewSize: Longint); virtual;overload;
     procedure SetSize(const NewSize: Int64); virtual;overload;
+	procedure ReadNotImplemented;
+	procedure WriteNotImplemented;
   public
-    function Read(var Buffer; Count: Longint): Longint; virtual; abstract;
-    function Write(const Buffer; Count: Longint): Longint; virtual; abstract;
+    function Read(var Buffer; Count: Longint): Longint; virtual;
+    function Write(const Buffer; Count: Longint): Longint; virtual;
     function Seek(Offset: Longint; Origin: Word): Longint; virtual; overload;
     function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; virtual; overload;
     procedure ReadBuffer(var Buffer; Count: Longint);
@@ -715,7 +718,7 @@ type
     procedure WriteByte(b : Byte);
     procedure WriteWord(w : Word);
     procedure WriteDWord(d : Cardinal);
-    Procedure WriteAnsiString (S : String);
+    Procedure WriteAnsiString (const S : String);
     property Position: Int64 read GetPosition write SetPosition;
     property Size: Int64 read GetSize write SetSize64;
   end;
@@ -831,7 +834,6 @@ type
     constructor Create(Instance: THandle; const ResName: WideString; ResType: PWideChar);
     constructor CreateFromID(Instance: THandle; ResID: Integer; ResType: PWideChar);
     destructor Destroy; override;
-    function Write(const Buffer; Count: Longint): Longint; override;
   end;
 {$else}
   TResourceStream = class(TCustomMemoryStream)
@@ -843,7 +845,6 @@ type
     constructor Create(Instance: THandle; const ResName: string; ResType: PChar);
     constructor CreateFromID(Instance: THandle; ResID: Integer; ResType: PChar);
     destructor Destroy; override;
-    function Write(const Buffer; Count: Longint): Longint; override;
   end;
 {$endif UNICODE}
 

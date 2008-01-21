@@ -482,9 +482,12 @@ type
     FNameValueSeparator : Char;
     FUpdateCount: Integer;
     FAdapter: IStringsAdapter;
+    FLBS : TTextLineBreakStyle;
     function GetCommaText: string;
     function GetName(Index: Integer): string;
     function GetValue(const Name: string): string;
+    Function GetLBS : TTextLineBreakStyle;
+    Procedure SetLBS (AValue : TTextLineBreakStyle); 
     procedure ReadData(Reader: TReader);
     procedure SetCommaText(const Value: string);
     procedure SetStringsAdapter(const Value: IStringsAdapter);
@@ -541,6 +544,7 @@ type
     procedure SaveToStream(Stream: TStream); virtual;
     procedure SetText(TheText: PChar); virtual;
     procedure GetNameValue(Index : Integer; Var AName,AValue : String);
+    Property TextLineBreakStyle : TTextLineBreakStyle Read GetLBS Write SetLBS;
     property Delimiter: Char read FDelimiter write SetDelimiter;
     property DelimitedText: string read GetDelimitedText write SetDelimitedText;
     property QuoteChar: Char read FQuoteChar write SetQuoteChar;
@@ -951,6 +955,11 @@ type
     FBufSize: Integer;
     FBufPos: Integer;
     FBufEnd: Integer;
+    
+    function ReadWord : word; {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
+    function ReadDWord : longword; {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
+    function ReadQWord : qword; {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
+    function ReadExtended : extended; {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
     procedure SkipProperty;
     procedure SkipSetBody;
   public
@@ -1143,6 +1152,11 @@ type
     FBufPos: Integer;
     FBufEnd: Integer;
     FSignatureWritten: Boolean;
+
+    procedure WriteWord(w : word); {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
+    procedure WriteDWord(lw : longword); {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
+    procedure WriteQWord(qw : qword); {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
+    procedure WriteExtended(e : extended); {$ifdef CLASSESINLINE}inline;{$endif CLASSESINLINE}
     procedure FlushBuffer;
     procedure WriteValue(Value: TValueType);
     procedure WriteStr(const Value: String);
@@ -1277,7 +1291,7 @@ type
     function SourcePos: Longint;
     function TokenComponentIdent: String;
     function TokenFloat: Extended;
-    function TokenInt: Longint;
+    function TokenInt: Int64;
     function TokenString: string;
     function TokenWideString: widestring;
     function TokenSymbolIs(const S: string): Boolean;

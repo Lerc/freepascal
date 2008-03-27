@@ -1287,7 +1287,6 @@ procedure ObjectBinaryToText(Input, Output: TStream);
 {      len: LongInt; }
       IsFirst: Boolean;
       ext: Extended;
-      i : integer;
 
     begin
       case ValueType of
@@ -1312,11 +1311,7 @@ procedure ObjectBinaryToText(Input, Output: TStream);
         vaInt64: OutLn(IntToStr(Int64(ReadQWord)));
         vaExtended: begin
             ext:=ReadExtended;
-            Str(ext:1:20,S);// Do not use localized strings.
-            i:=length(S);
-            while S[i]='0' do //1234.5678 is nicer than 1.2345678000000000E+0003
-              dec(i);
-            SetLength(S,i);
+            Str(ext,S);// Do not use localized strings.
             OutLn(S);
           end;
         vaString: begin

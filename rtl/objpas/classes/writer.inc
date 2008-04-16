@@ -391,10 +391,24 @@ begin
   Result := TBinaryObjectWriter.Create(Stream, BufSize);
 end;
 
+Type
+  TPosComponent = Class(TObject)
+    FPos : Integer;
+    FComponent : TComponent;
+    Constructor Create(APos : Integer; AComponent : TComponent);
+  end;
+
+Constructor TPosComponent.Create(APos : Integer; AComponent : TComponent);
+
+begin
+  FPos:=APos;
+  FComponent:=AComponent;
+end;
+
 // Used as argument for calls to TComponent.GetChildren:
 procedure TWriter.AddToAncestorList(Component: TComponent);
 begin
-  FAncestorList.Add(Component);
+  FAncestors.AddObject(Component.Name,TPosComponent.Create(FAncestors.Count,Component));
 end;
 
 procedure TWriter.DefineProperty(const Name: String;
@@ -487,131 +501,140 @@ begin
   WriteListEnd;
 end;
 
-procedure TWriter.WriteComponent(Component: TComponent);
-var
-  SavedAncestor: TPersistent;
-  SavedRootAncestor, AncestorComponent, CurAncestor: TComponent;
-  i: Integer;
-  s: String;
+procedure TWriter.DetermineAncestor(Component : TComponent);
+
+Var
+  I : Integer;
+
 begin
-  SavedAncestor := Ancestor;
-  SavedRootAncestor := RootAncestor;
-
-  try
-    // The component has to know that it is being written now...
-    Include(Component.FComponentState, csWriting);
-
-    // Locate the component in the ancestor list, if necessary
-    if Assigned(FAncestorList) then
+  // Should be set only when we write an inherited with children.
+  if Not Assigned(FAncestors) then
+    exit;
+  I:=FAncestors.IndexOf(Component.Name);
+  If (I=-1) then
     begin
-      Ancestor := nil;
-      s := UpperCase(Component.Name);
-      for i := 0 to FAncestorList.Count - 1 do
+    FAncestor:=Nil;
+    FAncestorPos:=-1;
+    end
+  else
+    With TPosComponent(FAncestors.Objects[i]) do
       begin
-        CurAncestor := TComponent(FAncestorList[i]);
-        if UpperCase(CurAncestor.Name) = s then
-        begin
-          Ancestor := CurAncestor;
-          break;
-        end;
+      FAncestor:=FComponent;
+      FAncestorPos:=FPos;
       end;
+end;
+
+procedure TWriter.DoFindAncestor(Component : TComponent);
+
+Var
+  C : TComponent;
+
+begin
+  if Assigned(FOnFindAncestor) then
+    if (Ancestor=Nil) or (Ancestor is TComponent) then
+      begin
+      C:=TComponent(Ancestor);
+      FOnFindAncestor(Self,Component,Component.Name,C,FRootAncestor);
+      Ancestor:=C;
+      end;
+end;
+
+procedure TWriter.WriteComponent(Component: TComponent);
+
+var
+  SA : TPersistent;
+  SR : TComponent;
+  
+begin
+  SR:=FRoot;
+  SA:=FAncestor;
+  Try
+    Component.FComponentState:=Component.FComponentState+[csWriting];
+    Try
+      // Possibly set ancestor.
+      DetermineAncestor(Component);
+      DoFindAncestor(Component); // Mainly for IDE when a parent form had an ancestor renamed...
+      // Will call WriteComponentData.
+      Component.WriteState(Self);
+      FDriver.EndList;
+    Finally
+      Component.FComponentState:=Component.FComponentState-[csWriting];
     end;
+  Finally
+    FAncestor:=SA;
+    FRoot:=SR;
+  end;
+end;
 
-    // Do we have to call the OnFindAncestor callback?
-    if Assigned(FOnFindAncestor) and
-      ((not Assigned(Ancestor)) or Ancestor.InheritsFrom(TComponent)) then
-    begin
-      AncestorComponent := TComponent(Ancestor);
-      FOnFindAncestor(Self, Component, Component.Name,
-        AncestorComponent, FRootAncestor);
-      Ancestor := AncestorComponent;
-    end;
+procedure TWriter.WriteChildren(Component : TComponent);
 
-    // Finally write the component state
-    Component.WriteState(Self);
-
-    // The writing has been finished now...
-    Exclude(Component.FComponentState, csWriting);
-
+Var
+  SRoot, SRootA : TComponent;
+  SList : TStringList;
+  SPos : Integer;
+  I : Integer;
+  
+begin
+  // Write children list. 
+  // While writing children, the ancestor environment must be saved
+  // This is recursive...
+  SRoot:=FRoot;
+  SRootA:=FRootAncestor;
+  SList:=FAncestors;
+  SPos:=FCurrentPos;
+  try
+    FAncestors:=Nil;
+    FCurrentPos:=0;
+    FAncestorPos:=-1;
+    if csInline in Component.ComponentState then
+       FRoot:=Component;
+    if (FAncestor is TComponent) then
+       begin
+       FAncestors:=TStringList.Create;
+       if csInline in TComponent(FAncestor).ComponentState then
+         FRootAncestor := TComponent(FAncestor);
+       TComponent(FAncestor).GetChildren(@AddToAncestorList,FRootAncestor);
+       FAncestors.Sorted:=True;
+       end;
+    try
+      Component.GetChildren(@WriteComponent, FRoot);
+    Finally
+      If Assigned(Fancestors) then
+        For I:=0 to FAncestors.Count-1 do 
+          FAncestors.Objects[i].Free;
+      FreeAndNil(FAncestors);
+    end;    
   finally
-    Ancestor := SavedAncestor;
-    FRootAncestor := SavedRootAncestor;
+    FAncestors:=Slist;
+    FRoot:=SRoot;
+    FRootAncestor:=SRootA;
+    FCurrentPos:=SPos;
+    FAncestorPos:=Spos;
   end;
 end;
 
 procedure TWriter.WriteComponentData(Instance: TComponent);
-var
-  SavedAncestorList: TList;
-  SavedRoot, SavedRootAncestor: TComponent;
-  SavedAncestorPos, SavedChildPos: Integer;
+var 
   Flags: TFilerFlags;
 begin
-  // Determine the filer flags to store
-  if Assigned(Ancestor) and ((not (csInline in Instance.ComponentState)) or
-    ((csAncestor in Instance.ComponentState) and Assigned(FAncestorList))) then
-    Flags := [ffInherited]
-  else if csInline in Instance.ComponentState then
-    Flags := [ffInline]
-  else
-    Flags := [];
-
-  if Assigned(FAncestorList) and (FAncestorPos < FAncestorList.Count) and
-    ((not Assigned(Ancestor)) or
-    (TPersistent(FAncestorList[FAncestorPos]) <> Ancestor)) then
-    Include(Flags, ffChildPos);
-
-  Driver.BeginComponent(Instance, Flags, FChildPos);
-
-  if Assigned(FAncestorList) and (FAncestorPos < FAncestorList.Count) then
-  begin
-    if Assigned(Ancestor) then
-      Inc(FAncestorPos);
-    Inc(FChildPos);
-  end;
-
-  // Write property list
+  Flags := [];
+  If (Assigned(FAncestor)) and  //has ancestor
+     (not (csInline in Instance.ComponentState) or // no inline component
+      // .. or the inline component is inherited
+      (csAncestor in Instance.Componentstate) and (FAncestors <> nil)) then
+    Flags:=[ffInherited]
+  else If csInline in Instance.ComponentState then
+    Flags:=[ffInline];
+  If (FAncestors<>Nil) and ((FCurrentPos<>FAncestorPos) or (FAncestor=Nil)) then
+    Include(Flags,ffChildPos);
+  FDriver.BeginComponent(Instance,Flags,FCurrentPos);
+  If (FAncestors<>Nil) then
+    Inc(FCurrentPos);
   WriteProperties(Instance);
   WriteListEnd;
-
-  // Write children list
-  SavedAncestorList := FAncestorList;
-  SavedAncestorPos := FAncestorPos;
-  SavedChildPos := FChildPos;
-  SavedRoot := FRoot;
-  SavedRootAncestor := FRootAncestor;
-  try
-    FAncestorList := nil;
-    FAncestorPos := 0;
-    FChildPos := 0;
-    if not IgnoreChildren then
-      try
-        // Set up the ancestor list if we have an ancestor
-        if FAncestor is TComponent then
-        begin
-          if csInline in TComponent(FAncestor).ComponentState then
-            FRootAncestor := TComponent(FAncestor);
-          FAncestorList := TList.Create;
-          TComponent(FAncestor).GetChildren(@AddToAncestorList, FRootAncestor);
-        end;
-
-        if csInline in Instance.ComponentState then
-          FRoot := Instance;
-
-        Instance.GetChildren(@WriteComponent, FRoot);
-
-      finally
-        FAncestorList.Free;
-      end;
-
-  finally
-    FAncestorList := SavedAncestorList;
-    FAncestorPos := SavedAncestorPos;
-    FChildPos := SavedChildPos;
-    FRoot := SavedRoot;
-    FRootAncestor := SavedRootAncestor;
-  end;
-
-  WriteListEnd;
+  // Needs special handling of ancestor.
+  If not IgnoreChildren then
+    WriteChildren(Instance);
 end;
 
 procedure TWriter.WriteDescendent(ARoot: TComponent; AAncestor: TComponent);
@@ -670,30 +693,18 @@ begin
 end;
 
 procedure TWriter.WriteProperties(Instance: TPersistent);
-var
-  i, PropCount: Integer;
-  PropInfo: PPropInfo;
-  PropList: PPropList;
+var PropCount,i : integer;
+    PropList  : PPropList;
 begin
-  { First step: Write the properties given by the RTTI for Instance }
-  PropCount := GetTypeData(Instance.ClassInfo)^.PropCount;
-  if PropCount > 0 then
-  begin
-    GetMem(PropList, PropCount * SizeOf(PPropInfo));
+  PropCount:=GetPropList(Instance,PropList);
+  if PropCount>0 then 
     try
-      GetPropInfos(Instance.ClassInfo, PropList);
-      for i := 0 to PropCount - 1 do
-      begin
-        PropInfo := PropList^[i];
-        if IsStoredProp(Instance, PropInfo) then
-          WriteProperty(Instance, PropInfo);
-      end;
-    finally
-      FreeMem(PropList);
+      for i := 0 to PropCount-1 do
+        if IsStoredProp(Instance,PropList^[i]) then
+          WriteProperty(Instance,PropList^[i]);
+    Finally    
+      Freemem(PropList);
     end;
-  end;
-
-  { Second step: Give Instance the chance to write its own private data }
   Instance.DefineProperties(Self);
 end;
 
@@ -745,6 +756,7 @@ begin
           DefValue := GetOrdProp(Ancestor, PropInfo)
         else
           DefValue := PPropInfo(PropInfo)^.Default;
+        //writeln(PPropInfo(PropInfo)^.Name, ', HasAncestor=', ord(HasAncestor), ', Value=', Value, ', Default=', DefValue);
         if (Value <> DefValue) or (DefValue=longint($80000000)) then
         begin
           Driver.BeginProperty(FPropPath + PPropInfo(PropInfo)^.Name);

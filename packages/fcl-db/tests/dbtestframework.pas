@@ -12,7 +12,7 @@ uses
   DigestTestReport,
   toolsunit,
 // Units wich contains the tests
-  testbasics, testsqlfieldtypes, testdbbasics;
+  testbasics, testfieldtypes, testdbbasics;
   
 var
   FXMLResultsWriter: TXMLResultsWriter;
@@ -26,7 +26,7 @@ begin
     testResult.AddListener(FXMLResultsWriter);
     testResult.AddListener(FDigestResultsWriter);
     FDigestResultsWriter.Comment:=dbtype;
-    FDigestResultsWriter.Category:='db';
+    FDigestResultsWriter.Category:='DB';
     FDigestResultsWriter.RelSrcDir:='fcl-db';
     FXMLResultsWriter.WriteHeader;
 //    FdiDBResultsWriter.OpenConnection(dbconnectorname+';'+dbconnectorparams);

@@ -27,6 +27,7 @@ begin
   FFieldDefs:=TFieldDefs.Create(Self);
   FFieldList:=TFields.Create(Self);
   FDataSources:=TList.Create;
+  FConstraints:=TCheckConstraints.Create(Self);
   
 // FBuffer must be allocated on create, to make Activebuffer return nil
   ReAllocMem(FBuffers,SizeOf(PChar));
@@ -58,6 +59,7 @@ begin
     end;
   for i := 0 to FBufferCount do
     FreeRecordBuffer(FBuffers[i]);
+  FConstraints.Free;
   FreeMem(FBuffers);
   Inherited Destroy;
 end;
@@ -114,6 +116,7 @@ begin
           if FieldIndex <> -1 then begin
             FieldDef := FieldDefs[FieldIndex];
             FFieldNo := FieldDef.FieldNo;
+            if FieldDef.InternalCalcField then FInternalCalcFields := True;
             if IsBlob then begin
               FSize := FieldDef.Size;
               FOffset := FBlobFieldCount;
@@ -972,12 +975,14 @@ begin
     else
       begin
       DoBeforeOpen;
+      FInternalCalcFields:=False;
       try
         OpenCursor(False);
       finally
         if FState <> dsOpening then OpenCursorComplete;
         end;
       end;
+    FModified:=False;
     end
   else if not value and (Fstate <> dsinactive) then
     begin

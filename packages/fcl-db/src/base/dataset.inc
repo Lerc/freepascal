@@ -180,8 +180,7 @@ end;
 Procedure TDataset.ClearCalcFields(Buffer: PChar);
 
 begin
-  if FCalcFieldsSize > 0 then
-    FillByte((Buffer+RecordSize)^,FCalcFieldsSize,0);
+  // Empty
 end;
 
 Procedure TDataset.CloseBlob(Field: TField);
@@ -822,6 +821,12 @@ begin
       CloseCursor;
       end;
     end;
+end;
+
+Procedure TDataSet.SetFieldDefs(AFieldDefs: TFieldDefs);
+
+begin
+  FFieldDefs.Assign(AFieldDefs);
 end;
 
 procedure TDataSet.InitFieldDefsFromfields;
@@ -2138,18 +2143,18 @@ function TDataset.GetFieldValues(Fieldname: string): Variant;
 var i: Integer;
     FieldList: TList;
 begin
-  if Pos(';', FieldName) <> 0 then begin
-    FieldList := TList.Create;
-    try
-      GetFieldList(FieldList, FieldName);
+  FieldList := TList.Create;
+  try
+    GetFieldList(FieldList, FieldName);
+    if FieldList.Count>1 then begin
       Result := VarArrayCreate([0, FieldList.Count - 1], varVariant);
       for i := 0 to FieldList.Count - 1 do
         Result[i] := TField(FieldList[i]).Value;
-    finally
-      FieldList.Free;
-    end;
-  end else
-    Result := FieldByName(FieldName).Value
+    end else
+      Result := FieldByName(FieldName).Value;
+  finally
+    FieldList.Free;
+  end;
 end;
 
 procedure TDataset.SetFieldValues(Fieldname: string; Value: Variant);
@@ -2158,7 +2163,7 @@ var
   i : Integer;
   FieldList: TList;
 begin
-  if Pos(';', FieldName) <> 0 then begin
+  if VarIsArray(Value) then begin
     FieldList := TList.Create;
     try
       GetFieldList(FieldList, FieldName);

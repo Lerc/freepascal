@@ -1601,7 +1601,7 @@ begin
         DoVarOpLongInt(TVarData(Left),TVarData(Right),OpCode);
       end;
     ctFloat:
-      if OpCode <> opIntDivide then
+      if OpCode in [opAdd,opSubtract,opMultiply,opDivide] then
         DoVarOpFloat(TVarData(Left),TVarData(Right),OpCode)
       else
         DoVarOpInt64to32(TVarData(Left),TVarData(Right),OpCode);
@@ -4064,7 +4064,7 @@ begin
         else
           AMethod.Code:=PPointer(Pointer(Instance.ClassType)+PtrUInt(PropInfo^.SetProc))^;
         AMethod.Data:=Instance;
-        
+
 	      if ((PropInfo^.PropProcs shr 6) and 1)=0 then
           TSetVariantProc(AMethod)(Value)
         else
@@ -4135,7 +4135,7 @@ begin
      tkInt64:
        Result := GetInt64Prop(Instance, PropInfo);
    else
-     raise EPropertyError.CreateFmt('Invalid Property Type: %s',[PropInfo^.PropType^.Name]);
+     raise EPropertyConvertError.CreateFmt('Invalid Property Type: %s',[PropInfo^.PropType^.Name]);
    end;
    end;
 end;
@@ -4153,7 +4153,7 @@ begin
    // find the property
    PropInfo := GetPropInfo(Instance, PropName);
    if PropInfo = nil then
-     raise EPropertyError.CreateFmt('SetPropValue: Unknown property: "%s"', [PropName])
+     raise EPropertyError.CreateFmt(SErrPropertyNotFound, [PropName])
    else
      begin
 //     TypeData := GetTypeData(PropInfo^.PropType);
@@ -4207,7 +4207,7 @@ begin
        tkInt64:
          SetInt64Prop(Instance, PropInfo, Value);
      else
-       raise EPropertyError.CreateFmt('SetPropValue: Invalid Property Type %s',
+       raise EPropertyConvertError.CreateFmt('SetPropValue: Invalid Property Type %s',
                                       [PropInfo^.PropType^.Name]);
      end;
    end;

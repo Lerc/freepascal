@@ -42,8 +42,8 @@ begin
 {$ifdef dsdebug }
   Writeln('TFieldDef.Create : ',Aname,'(',AFieldNo,')');
 {$endif}
-  Name:=Aname;
   Inherited Create(AOwner);
+  Name:=Aname;
   FDatatype:=ADatatype;
   FSize:=ASize;
   FRequired:=ARequired;
@@ -252,6 +252,18 @@ begin
     If Assigned(Dataset) then
       DataSet.InitFieldDefs;
     Updated := True;
+    end;
+end;
+
+function TFieldDefs.MakeNameUnique(const AName: String): string;
+var DblFieldCount : integer;
+begin
+  DblFieldCount := 0;
+  Result := AName;
+  while assigned(inherited Find(Result)) do
+    begin
+    inc(DblFieldCount);
+    Result := AName + '_' + IntToStr(DblFieldCount);
     end;
 end;
 
@@ -596,6 +608,11 @@ begin
     Result:=-1;
 end;
 
+function TField.GetLookup: Boolean;
+begin
+  Result := FieldKind = fkLookup;
+end;
+
 function TField.GetAsLargeInt: LargeInt;
 begin
   Raise AccessError(SLargeInt);
@@ -730,7 +747,7 @@ begin
   Raise AccessError(SFloat);
 end;
 
-procedure TField.SetAsVariant(AValue: Variant);
+procedure TField.SetAsVariant(const AValue: Variant);
 
 begin
   if VarIsNull(AValue) then
@@ -925,6 +942,13 @@ begin
     result:=GetDefaultWidth
   else
     result:=FDisplayWidth;
+end;
+
+procedure TField.SetLookup(const AValue: Boolean);
+const
+  ValueToLookupMap: array[Boolean] of TFieldKind = (fkData, fkLookup);
+begin
+  FieldKind := ValueToLookupMap[AValue];
 end;
 
 procedure TField.SetReadOnly(const AValue: Boolean);

@@ -718,6 +718,7 @@ var
   Value, DefValue: LongInt;
   Ident: String;
   IntToIdentFn: TIntToIdent;
+  SingleV : Single;
   FloatValue, DefFloatValue: Extended;
   MethodValue: TMethod;
   DefMethodValue: TMethod;
@@ -759,7 +760,7 @@ begin
           DefValue := GetOrdProp(Ancestor, PropInfo)
         else
           DefValue := PPropInfo(PropInfo)^.Default;
-        //writeln(PPropInfo(PropInfo)^.Name, ', HasAncestor=', ord(HasAncestor), ', Value=', Value, ', Default=', DefValue);
+        // writeln(PPropInfo(PropInfo)^.Name, ', HasAncestor=', ord(HasAncestor), ', Value=', Value, ', Default=', DefValue);
         if (Value <> DefValue) or (DefValue=longint($80000000)) then
         begin
           Driver.BeginProperty(FPropPath + PPropInfo(PropInfo)^.Name);
@@ -793,8 +794,11 @@ begin
         if HasAncestor then
           DefFloatValue := GetFloatProp(Ancestor, PropInfo)
         else
-          DefFloatValue := 0;
-        if FloatValue <> DefFloatValue then
+          begin
+          DefValue :=PPropInfo(PropInfo)^.Default;
+          DefFloatValue:=PSingle(@PPropInfo(PropInfo)^.Default)^;
+          end;
+        if (FloatValue<>DefFloatValue) or (DefValue=longint($80000000)) then
         begin
           Driver.BeginProperty(FPropPath + PPropInfo(PropInfo)^.Name);
           WriteFloat(FloatValue);
@@ -971,8 +975,12 @@ begin
         if HasAncestor then
           DefBoolValue := GetOrdProp(Ancestor, PropInfo)<>0
         else
+          begin
           DefBoolValue := PPropInfo(PropInfo)^.Default<>0;
-        if BoolValue <> DefBoolValue then
+          DefValue:=PPropInfo(PropInfo)^.Default;
+          end;
+        // writeln(PPropInfo(PropInfo)^.Name, ', HasAncestor=', ord(HasAncestor), ', Value=', Value, ', Default=', DefBoolValue);
+        if (BoolValue<>DefBoolValue) or (DefValue=longint($80000000)) then
           begin
           Driver.BeginProperty(FPropPath + PPropInfo(PropInfo)^.Name);
           WriteBoolean(BoolValue);

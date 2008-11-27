@@ -396,7 +396,6 @@ end;
 Procedure TDataset.DoInternalOpen;
 
 begin
-  FDefaultFields:=FieldCount=0;
   InternalOpen;
   FInternalOpenComplete := True;
 {$ifdef dsdebug}
@@ -982,6 +981,7 @@ begin
       DoBeforeOpen;
       FInternalCalcFields:=False;
       try
+        FDefaultFields:=FieldCount=0;
         OpenCursor(False);
       finally
         if FState <> dsOpening then OpenCursorComplete;

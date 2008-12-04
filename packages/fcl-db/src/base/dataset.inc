@@ -828,6 +828,23 @@ begin
   FFieldDefs.Assign(AFieldDefs);
 end;
 
+procedure TDataSet.DoInsertAppendRecord(const Values: array of const; DoAppend : boolean);
+var i : integer;
+    ValuesSize : integer;
+begin
+  ValuesSize:=Length(Values);
+  if ValuesSize>FieldCount then DatabaseError(STooManyFields,self);
+  if DoAppend then
+    Append
+  else
+    Insert;
+
+  for i := 0 to ValuesSize-1 do with values[i] do
+    fields[i].AssignValue(values[i]);
+  Post;
+
+end;
+
 procedure TDataSet.InitFieldDefsFromfields;
 var i : integer;
 begin
@@ -1320,7 +1337,7 @@ end;
 Procedure TDataset.AppendRecord(const Values: array of const);
 
 begin
-  //!! To be implemented
+  DoInsertAppendRecord(Values,True);
 end;
 
 Function TDataset.BookmarkValid(ABookmark: TBookmark): Boolean;
@@ -1753,9 +1770,8 @@ end;
 
 Procedure TDataset.InsertRecord(const Values: array of const);
 
-
 begin
-  //!! To be implemented
+  DoInsertAppendRecord(Values,False);
 end;
 
 Function TDataset.IsEmpty: Boolean;

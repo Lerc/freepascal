@@ -1598,10 +1598,10 @@ end;
 Procedure TDataset.Edit;
 
 begin
+  If State in [dsedit,dsinsert] then exit;
   CheckBrowseMode;
   If Not CanModify then
     DatabaseError(SDatasetReadOnly,Self);
-  If State in [dsedit,dsinsert] then exit;
   If FRecordCount = 0 then
     begin
     Append;
